@@ -1,0 +1,37 @@
+{
+    "name": "slam/flysystem-local-cache-proxy",
+    "type": "library",
+    "description": "FlySystem adapter to cache locally the content of files",
+    "homepage": "https://github.com/slamdunk/flysystem-local-cache-proxy",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Filippo Tessarotto",
+            "email": "zoeslam@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "ext-hash": "*",
+        "league/flysystem": "^2.3.1"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^v3.3.2",
+        "infection/infection": "^0.25.3",
+        "league/flysystem-adapter-test-utilities": "^2.3.1",
+        "malukenho/mcbumpface": "^1.1.5",
+        "phpunit/phpunit": "^9.5.10",
+        "vimeo/psalm": "^4.13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SlamFlysystem\\LocalCache\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SlamFlysystem\\LocalCache\\Test\\": "test/"
+        }
+    }
+}
