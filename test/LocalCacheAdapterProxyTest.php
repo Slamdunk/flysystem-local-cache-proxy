@@ -15,6 +15,7 @@ use SlamFlysystem\LocalCache\LocalCacheProxyAdapter;
 
 /**
  * @covers \SlamFlysystem\LocalCache\LocalCacheProxyAdapter
+ * @covers \SlamFlysystem\LocalCache\LocalCacheStreamFilter
  *
  * @internal
  */
@@ -46,9 +47,10 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
     public function adapter(): FilesystemAdapter
     {
         if (null === $this->customAdapter) {
+            $this->localCacheAdapter = new LocalFilesystemAdapter($this->localRoot);
             $this->customAdapter = new LocalCacheProxyAdapter(
                 $this->remoteAdapter = new LocalFilesystemAdapter($this->remoteRoot),
-                $this->localCacheAdapter = new LocalFilesystemAdapter($this->localRoot)
+                $this->localRoot
             );
         }
 
@@ -104,11 +106,113 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
     public function fetching_unknown_mime_type_of_a_file(): void
     {
         $this->customAdapter = new LocalCacheProxyAdapter(
-            new LocalFilesystemAdapter($this->remoteRoot, null, LOCK_EX, LocalFilesystemAdapter::DISALLOW_LINKS, new ExtensionMimeTypeDetector(new EmptyExtensionToMimeTypeMap())),
-            new LocalFilesystemAdapter($this->localRoot)
+            new LocalFilesystemAdapter(
+                $this->remoteRoot,
+                null,
+                LOCK_EX,
+                LocalFilesystemAdapter::DISALLOW_LINKS,
+                new ExtensionMimeTypeDetector(new EmptyExtensionToMimeTypeMap())
+            ),
+            $this->localRoot
         );
 
         parent::fetching_unknown_mime_type_of_a_file();
+    }
+
+    /**
+     * @test
+     */
+    public function writing_saves_a_local_copy(): void
+    {
+        $adapter = $this->adapter();
+
+        $adapter->write('path.txt', 'contents', new Config());
+
+        $fileExists = $adapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+
+        $contents = $adapter->read('path.txt');
+        $this->assertEquals('contents', $contents);
+
+        $fileExists = $this->localCacheAdapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+
+        $contents = $this->localCacheAdapter->read('path.txt');
+        $this->assertEquals('contents', $contents);
+    }
+
+    /**
+     * @test
+     */
+    public function stream_that_goes_wrong_doesnt_create_a_false_positive_local_file(): void
+    {
+        $adapter = $this->adapter();
+
+        StreamThatGoesWrongFilter::register();
+
+        $stream = fopen('php://temp', 'w+');
+        fwrite($stream, 'contents');
+        rewind($stream);
+
+        StreamThatGoesWrongFilter::append($stream);
+        try {
+            $adapter->writeStream('path.txt', $stream, new Config());
+            $this->fail();
+        } catch (RuntimeException $runtimeException) {
+        } finally {
+        }
+
+        try {
+            fclose($stream);
+        } catch (RuntimeException $runtimeException) {}
+
+        // Our StreamThatGoesWrongFilter is triggeres only after the
+        // fopen call by the remote LocalFilesystemAdapter, so the
+        // remote file exists, but this doesn't matter to this test
+        $fileExists = $adapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+
+        $contents = $adapter->read('path.txt');
+        $this->assertEquals('', $contents);
+
+        $fileExists = $this->localCacheAdapter->fileExists('path.txt');
+        $this->assertFalse($fileExists);
+    }
+
+    /**
+     * @test
+     */
+    public function file_exists_reply_with_local_cache_first(): void
+    {
+        $adapter = $this->adapter();
+
+        $adapter->write('path.txt', 'contents', new Config());
+
+        $fileExists = $adapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+
+        $this->remoteAdapter->delete('path.txt');
+
+        $fileExists = $adapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+    }
+
+    /**
+     * @test
+     */
+    public function read_reads_local_cache_first(): void
+    {
+        $adapter = $this->adapter();
+
+        $adapter->write('path.txt', 'contents', new Config());
+
+        $fileExists = $adapter->fileExists('path.txt');
+        $this->assertTrue($fileExists);
+
+        $this->remoteAdapter->delete('path.txt');
+
+        $contents = $adapter->read('path.txt');
+        $this->assertEquals('contents', $contents);
     }
 
     protected static function createFilesystemAdapter(): FilesystemAdapter

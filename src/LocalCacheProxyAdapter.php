@@ -8,13 +8,20 @@ use League\Flysystem\Config;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\PathPrefixer;
 
 final class LocalCacheProxyAdapter implements FilesystemAdapter
 {
+    private LocalFilesystemAdapter $localCacheAdapter;
+    private PathPrefixer $pathPrefixer;
     public function __construct(
         private FilesystemAdapter $remoteAdapter,
-        private LocalFilesystemAdapter $localCacheAdapter
+        string $location
     ) {
+        $this->localCacheAdapter = new LocalFilesystemAdapter($location);
+        $this->pathPrefixer = new PathPrefixer($location, DIRECTORY_SEPARATOR);
+
+        LocalCacheStreamFilter::register();
     }
 
     /**
@@ -22,7 +29,8 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function fileExists(string $path): bool
     {
-        return $this->remoteAdapter->fileExists($path);
+        return $this->localCacheAdapter->fileExists($path)
+            || $this->remoteAdapter->fileExists($path);
     }
 
     /**
@@ -44,6 +52,13 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function writeStream(string $path, $contents, Config $config): void
     {
+        $this->localCacheAdapter->createDirectory(dirname($path), new Config());
+
+        LocalCacheStreamFilter::appendWrite(
+            $this->pathPrefixer->prefixPath($path),
+            $contents
+        );
+
         $this->remoteAdapter->writeStream($path, $contents, $config);
     }
 
@@ -52,11 +67,11 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function read(string $path): string
     {
-        $stream = $this->readStream($path);
-        $contents = stream_get_contents($this->readStream($path));
-        fclose($stream);
+        if ($this->localCacheAdapter->fileExists($path)) {
+            return $this->localCacheAdapter->read($path);
+        }
 
-        return $contents;
+        return $this->remoteAdapter->read($path);
     }
 
     /**
@@ -72,6 +87,7 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function delete(string $path): void
     {
+        $this->localCacheAdapter->delete($path);
         $this->remoteAdapter->delete($path);
     }
 
@@ -144,6 +160,11 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function move(string $source, string $destination, Config $config): void
     {
+        $this->localCacheAdapter->move(
+            $source,
+            $destination,
+            $config
+        );
         $this->remoteAdapter->move(
             $source,
             $destination,
@@ -156,6 +177,11 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function copy(string $source, string $destination, Config $config): void
     {
+        $this->localCacheAdapter->copy(
+            $source,
+            $destination,
+            $config
+        );
         $this->remoteAdapter->copy(
             $source,
             $destination,
