@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace SlamFlysystem\LocalCache\Test;
 
-use DeflateContext;
-use HashContext;
-use InflateContext;
 use php_user_filter;
 use RuntimeException;
 

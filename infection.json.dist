@@ -14,8 +14,19 @@
     "mutators": {
         "@default": true,
         "global-ignoreSourceCodeByRegex": [
-            "\\\\assert\\(.+\\);"
-        ]
+            "\\\\assert\\(.+\\);",
+            "\\$consumed ..?= .+;"
+        ],
+        "ConcatOperandRemoval": {
+            "ignoreSourceCodeByRegex": [
+                "\\$this->tmpFilename = \\$this->filename . '.tmp';"
+            ]
+        },
+        "TrueValue": {
+            "ignoreSourceCodeByRegex": [
+                "self::\\$filterRegistered = true;"
+            ]
+        }
     },
     "minMsi": 100,
     "minCoveredMsi": 100

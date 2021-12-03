@@ -14,12 +14,13 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
 {
     private LocalFilesystemAdapter $localCacheAdapter;
     private PathPrefixer $pathPrefixer;
+
     public function __construct(
         private FilesystemAdapter $remoteAdapter,
         string $location
     ) {
         $this->localCacheAdapter = new LocalFilesystemAdapter($location);
-        $this->pathPrefixer = new PathPrefixer($location, DIRECTORY_SEPARATOR);
+        $this->pathPrefixer = new PathPrefixer($location, \DIRECTORY_SEPARATOR);
 
         LocalCacheStreamFilter::register();
     }
@@ -52,7 +53,7 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function writeStream(string $path, $contents, Config $config): void
     {
-        $this->localCacheAdapter->createDirectory(dirname($path), new Config());
+        $this->localCacheAdapter->createDirectory(\dirname($path), new Config());
 
         LocalCacheStreamFilter::appendWrite(
             $this->pathPrefixer->prefixPath($path),
@@ -79,7 +80,18 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function readStream(string $path)
     {
-        return $this->remoteAdapter->readStream($path);
+        if ($this->localCacheAdapter->fileExists($path)) {
+            return $this->localCacheAdapter->readStream($path);
+        }
+
+        $stream = $this->remoteAdapter->readStream($path);
+
+        LocalCacheStreamFilter::appendWrite(
+            $this->pathPrefixer->prefixPath($path),
+            $stream
+        );
+
+        return $stream;
     }
 
     /**
@@ -96,6 +108,7 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function deleteDirectory(string $path): void
     {
+        $this->localCacheAdapter->deleteDirectory($path);
         $this->remoteAdapter->deleteDirectory($path);
     }
 
@@ -105,6 +118,7 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
     public function createDirectory(string $path, Config $config): void
     {
         $this->remoteAdapter->createDirectory($path, $config);
+        $this->localCacheAdapter->createDirectory($path, $config);
     }
 
     /**
@@ -136,6 +150,10 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function lastModified(string $path): FileAttributes
     {
+        if ($this->localCacheAdapter->fileExists($path)) {
+            return $this->localCacheAdapter->lastModified($path);
+        }
+
         return $this->remoteAdapter->lastModified($path);
     }
 
@@ -144,6 +162,10 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function fileSize(string $path): FileAttributes
     {
+        if ($this->localCacheAdapter->fileExists($path)) {
+            return $this->localCacheAdapter->fileSize($path);
+        }
+
         return $this->remoteAdapter->fileSize($path);
     }
 
@@ -160,16 +182,19 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function move(string $source, string $destination, Config $config): void
     {
-        $this->localCacheAdapter->move(
-            $source,
-            $destination,
-            $config
-        );
         $this->remoteAdapter->move(
             $source,
             $destination,
             $config
         );
+
+        if ($this->localCacheAdapter->fileExists($source)) {
+            $this->localCacheAdapter->move(
+                $source,
+                $destination,
+                $config
+            );
+        }
     }
 
     /**
@@ -177,15 +202,18 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function copy(string $source, string $destination, Config $config): void
     {
-        $this->localCacheAdapter->copy(
-            $source,
-            $destination,
-            $config
-        );
         $this->remoteAdapter->copy(
             $source,
             $destination,
             $config
         );
+
+        if ($this->localCacheAdapter->fileExists($source)) {
+            $this->localCacheAdapter->copy(
+                $source,
+                $destination,
+                $config
+            );
+        }
     }
 }

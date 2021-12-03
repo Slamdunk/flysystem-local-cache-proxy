@@ -1,3 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.12.0@e42bc4a23f67acba28a23bb09c348e2ff38a1d87">
+<files psalm-version="4.13.1@5cf660f63b548ccd4a56f62d916ee4d6028e01a3">
+  <file src="src/LocalCacheStreamFilter.php">
+    <InvalidPropertyAssignmentValue occurrences="1">
+      <code>$this-&gt;resource</code>
+    </InvalidPropertyAssignmentValue>
+    <MissingConstructor occurrences="3">
+      <code>$filename</code>
+      <code>$resource</code>
+      <code>$tmpFilename</code>
+    </MissingConstructor>
+  </file>
+  <file src="test/LocalCacheAdapterProxyTest.php">
+    <InvalidArgument occurrences="8">
+      <code>$adapter-&gt;listContents('/', true)</code>
+      <code>$adapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;localCacheAdapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;localCacheAdapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;localCacheAdapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;remoteAdapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;remoteAdapter-&gt;listContents('/', true)</code>
+      <code>$this-&gt;remoteAdapter-&gt;listContents('/', true)</code>
+    </InvalidArgument>
+    <PropertyNotSetInConstructor occurrences="7">
+      <code>$localCacheAdapter</code>
+      <code>$localRoot</code>
+      <code>$remoteAdapter</code>
+      <code>$remoteRoot</code>
+      <code>LocalCacheAdapterProxyTest</code>
+      <code>LocalCacheAdapterProxyTest</code>
+      <code>LocalCacheAdapterProxyTest</code>
+    </PropertyNotSetInConstructor>
+  </file>
 </files>

@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace SlamFlysystem\LocalCache;
 
-use DeflateContext;
-use HashContext;
-use InflateContext;
 use php_user_filter;
-use RuntimeException;
 
 /**
  * @internal
@@ -63,17 +59,18 @@ final class LocalCacheStreamFilter extends php_user_filter
 
             $contents = $bucket->data;
             stream_bucket_append($out, $bucket);
+            \assert(\is_int($bucket->datalen));
             $consumed += $bucket->datalen;
 
             $result = fwrite($this->resource, $contents);
-            assert(false !== $result);
+            \assert(false !== $result);
         }
 
         if ($closing) {
             $fclose = fclose($this->resource);
-            assert(false !== $fclose);
+            \assert(false !== $fclose);
             $rename = rename($this->tmpFilename, $this->filename);
-            assert(false !== $rename);
+            \assert(false !== $rename);
         }
 
         return PSFS_PASS_ON;
