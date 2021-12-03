@@ -13,7 +13,6 @@
     ],
     "require": {
         "php": ">=8.0",
-        "ext-hash": "*",
         "league/flysystem": "^2.3.2"
     },
     "require-dev": {
