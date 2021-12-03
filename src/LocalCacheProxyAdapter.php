@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace SlamFlysystem\LocalCache;
 
+use DateTimeImmutable;
+use DateTimeInterface;
 use League\Flysystem\Config;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathPrefixer;
 
-final class LocalCacheProxyAdapter implements FilesystemAdapter
+final class LocalCacheProxyAdapter implements CachedFilesystemAdapter
 {
     private LocalFilesystemAdapter $localCacheAdapter;
     private PathPrefixer $pathPrefixer;
@@ -69,6 +71,8 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
     public function read(string $path): string
     {
         if ($this->localCacheAdapter->fileExists($path)) {
+            $this->touch($path, new DateTimeImmutable());
+
             return $this->localCacheAdapter->read($path);
         }
 
@@ -81,6 +85,8 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
     public function readStream(string $path)
     {
         if ($this->localCacheAdapter->fileExists($path)) {
+            $this->touch($path, new DateTimeImmutable());
+
             return $this->localCacheAdapter->readStream($path);
         }
 
@@ -150,10 +156,6 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
      */
     public function lastModified(string $path): FileAttributes
     {
-        if ($this->localCacheAdapter->fileExists($path)) {
-            return $this->localCacheAdapter->lastModified($path);
-        }
-
         return $this->remoteAdapter->lastModified($path);
     }
 
@@ -214,6 +216,29 @@ final class LocalCacheProxyAdapter implements FilesystemAdapter
                 $destination,
                 $config
             );
+        }
+    }
+
+    public function touch(string $path, DateTimeInterface $date): void
+    {
+        touch($this->pathPrefixer->prefixPath($path), $date->getTimestamp());
+    }
+
+    public function clearCacheOlderThan(DateTimeInterface $date): void
+    {
+        $timestamp = $date->getTimestamp();
+        foreach ($this->localCacheAdapter->listContents('/', true) as $fileAttributes) {
+            if (!$fileAttributes->isFile()) {
+                continue;
+            }
+
+            $lastModified = $fileAttributes->lastModified();
+            \assert(null !== $lastModified);
+            if ($timestamp <= $lastModified) {
+                continue;
+            }
+
+            $this->localCacheAdapter->delete($fileAttributes->path());
         }
     }
 }

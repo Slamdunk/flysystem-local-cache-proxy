@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace SlamFlysystem\LocalCache\Test;
 
+use DateTimeImmutable;
 use League\Flysystem\AdapterTestUtilities\FilesystemAdapterTestCase;
 use League\Flysystem\Config;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\UnableToRetrieveMetadata;
 use League\MimeTypeDetection\EmptyExtensionToMimeTypeMap;
 use League\MimeTypeDetection\ExtensionMimeTypeDetector;
 use RuntimeException;
+use SlamFlysystem\LocalCache\CachedFilesystemAdapter;
 use SlamFlysystem\LocalCache\LocalCacheProxyAdapter;
 
 /**
@@ -21,7 +24,7 @@ use SlamFlysystem\LocalCache\LocalCacheProxyAdapter;
  */
 final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
 {
-    protected ?FilesystemAdapter $customAdapter = null;
+    protected ?CachedFilesystemAdapter $customAdapter = null;
     protected LocalFilesystemAdapter $remoteAdapter;
     protected LocalFilesystemAdapter $localCacheAdapter;
     protected string $remoteRoot;
@@ -44,7 +47,7 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
         delete_directory($this->localRoot);
     }
 
-    public function adapter(): FilesystemAdapter
+    public function adapter(): CachedFilesystemAdapter
     {
         if (null === $this->customAdapter) {
             $this->localCacheAdapter = new LocalFilesystemAdapter($this->localRoot);
@@ -241,13 +244,15 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
     /**
      * @test
      */
-    public function on_last_modified_calls_cache_replies_first(): void
+    public function last_modified_call_is_never_proxied_to_let_mtime_be_used_for_cache_usage(): void
     {
         $adapter = $this->adapter();
 
         $this->localCacheAdapter->write('file.txt', 'xyz', new Config());
 
-        static::assertGreaterThan(1, $adapter->lastModified('file.txt')->lastModified());
+        $this->expectException(UnableToRetrieveMetadata::class);
+
+        $adapter->lastModified('file.txt');
     }
 
     /**
@@ -290,6 +295,91 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
 
         static::assertTrue($adapter->fileExists('file2.txt'));
         static::assertTrue($adapter->fileExists('file.txt'));
+    }
+
+    /**
+     * @test
+     */
+    public function clear_cache_older_than(): void
+    {
+        $adapter = $this->adapter();
+
+        $new = new DateTimeImmutable('2021-12-01');
+        $old = new DateTimeImmutable('2021-01-01');
+        $limit = $new->modify('-1 day');
+
+        $file1Path = 'file1.txt';
+        $file2Path = 'subfolder/file2.txt';
+        $file3Path = 'file3.txt';
+        $file4Path = 'file4.txt';
+
+        $adapter->write($file1Path, 'bar', new Config());
+        $adapter->write($file2Path, 'foo', new Config());
+        $adapter->write($file3Path, 'baz', new Config());
+        $adapter->write($file4Path, 'xyz', new Config());
+
+        $adapter->touch($file1Path, $limit);
+        $adapter->touch($file2Path, $old);
+        $adapter->touch($file3Path, $new);
+        $adapter->touch($file4Path, $limit->modify('-1 day'));
+
+        $adapter->clearCacheOlderThan($limit);
+
+        static::assertTrue($adapter->fileExists($file1Path));
+        static::assertTrue($adapter->fileExists($file2Path));
+        static::assertTrue($adapter->fileExists($file3Path));
+        static::assertTrue($adapter->fileExists($file4Path));
+
+        static::assertTrue($this->localCacheAdapter->fileExists($file1Path));
+        static::assertFalse($this->localCacheAdapter->fileExists($file2Path));
+        static::assertTrue($this->localCacheAdapter->fileExists($file3Path));
+        static::assertFalse($this->localCacheAdapter->fileExists($file4Path));
+    }
+
+    /**
+     * @test
+     */
+    public function read_refreshes_cache_timestamp(): void
+    {
+        $adapter = $this->adapter();
+
+        $old = new DateTimeImmutable('2021-01-01');
+        $oldPath = 'subfolder/old.txt';
+
+        $adapter->write($oldPath, 'foo', new Config());
+        $adapter->touch($oldPath, $old);
+
+        static::assertTrue($adapter->fileExists($oldPath));
+
+        static::assertSame('foo', $adapter->read($oldPath));
+
+        $adapter->clearCacheOlderThan($old->modify('+1 day'));
+
+        static::assertTrue($adapter->fileExists($oldPath));
+        static::assertTrue($this->localCacheAdapter->fileExists($oldPath));
+    }
+
+    /**
+     * @test
+     */
+    public function read_stream_refreshes_cache_timestamp(): void
+    {
+        $adapter = $this->adapter();
+
+        $old = new DateTimeImmutable('2021-01-01');
+        $oldPath = 'subfolder/old.txt';
+
+        $adapter->write($oldPath, 'foo', new Config());
+        $adapter->touch($oldPath, $old);
+
+        static::assertTrue($adapter->fileExists($oldPath));
+
+        static::assertSame('foo', stream_get_contents($adapter->readStream($oldPath)));
+
+        $adapter->clearCacheOlderThan($old->modify('+1 day'));
+
+        static::assertTrue($adapter->fileExists($oldPath));
+        static::assertTrue($this->localCacheAdapter->fileExists($oldPath));
     }
 
     protected static function createFilesystemAdapter(): FilesystemAdapter
