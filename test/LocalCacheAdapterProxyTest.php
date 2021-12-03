@@ -310,7 +310,7 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
 
         $file1Path = 'file1.txt';
         $file2Path = 'subfolder/file2.txt';
-        $file3Path = 'file3.txt';
+        $file3Path = 'subfolder/file3.txt';
         $file4Path = 'file4.txt';
 
         $adapter->write($file1Path, 'bar', new Config());
