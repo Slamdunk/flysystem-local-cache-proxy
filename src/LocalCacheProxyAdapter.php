@@ -23,8 +23,6 @@ final class LocalCacheProxyAdapter implements CachedFilesystemAdapter
     ) {
         $this->localCacheAdapter = new LocalFilesystemAdapter($location);
         $this->pathPrefixer = new PathPrefixer($location, \DIRECTORY_SEPARATOR);
-
-        LocalCacheStreamFilter::register();
     }
 
     /**
@@ -57,12 +55,15 @@ final class LocalCacheProxyAdapter implements CachedFilesystemAdapter
     {
         $this->localCacheAdapter->createDirectory(\dirname($path), new Config());
 
-        LocalCacheStreamFilter::appendWrite(
-            $this->pathPrefixer->prefixPath($path),
-            $contents
-        );
+        $destination = $this->pathPrefixer->prefixPath($path);
+        $tmpFile = uniqid($destination.'_');
+        file_put_contents($tmpFile, $contents);
+        $tmpStream = fopen($tmpFile, 'r');
 
-        $this->remoteAdapter->writeStream($path, $contents, $config);
+        $this->remoteAdapter->writeStream($path, $tmpStream, $config);
+
+        fclose($tmpStream);
+        rename($tmpFile, $destination);
     }
 
     /**
@@ -76,7 +77,7 @@ final class LocalCacheProxyAdapter implements CachedFilesystemAdapter
             return $this->localCacheAdapter->read($path);
         }
 
-        return $this->remoteAdapter->read($path);
+        return stream_get_contents($this->readStream($path));
     }
 
     /**
@@ -90,14 +91,12 @@ final class LocalCacheProxyAdapter implements CachedFilesystemAdapter
             return $this->localCacheAdapter->readStream($path);
         }
 
-        $stream = $this->remoteAdapter->readStream($path);
+        $destination = $this->pathPrefixer->prefixPath($path);
+        $tmpFile = uniqid($destination.'_');
+        file_put_contents($tmpFile, $this->remoteAdapter->readStream($path));
+        rename($tmpFile, $destination);
 
-        LocalCacheStreamFilter::appendWrite(
-            $this->pathPrefixer->prefixPath($path),
-            $stream
-        );
-
-        return $stream;
+        return $this->localCacheAdapter->readStream($path);
     }
 
     /**

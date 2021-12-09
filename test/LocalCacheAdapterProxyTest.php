@@ -18,7 +18,6 @@ use SlamFlysystem\LocalCache\LocalCacheProxyAdapter;
 
 /**
  * @covers \SlamFlysystem\LocalCache\LocalCacheProxyAdapter
- * @covers \SlamFlysystem\LocalCache\LocalCacheStreamFilter
  *
  * @internal
  */
@@ -128,15 +127,6 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
         } catch (RuntimeException $runtimeException) {
         }
 
-        // Our StreamThatGoesWrongFilter is triggeres only after the
-        // fopen call by the remote LocalFilesystemAdapter, so the
-        // remote file exists, but this doesn't matter to this test
-        $fileExists = $adapter->fileExists('path.txt');
-        static::assertTrue($fileExists);
-
-        $contents = $adapter->read('path.txt');
-        static::assertSame('', $contents);
-
         $fileExists = $this->localCacheAdapter->fileExists('path.txt');
         static::assertFalse($fileExists);
     }
@@ -162,19 +152,27 @@ final class LocalCacheAdapterProxyTest extends FilesystemAdapterTestCase
     /**
      * @test
      */
-    public function read_reads_local_cache_first(): void
+    public function read_reads_saves_remote_read_and_cache_response(): void
     {
         $adapter = $this->adapter();
 
-        $adapter->write('path.txt', 'contents', new Config());
+        static::assertFalse($adapter->fileExists('path.txt'));
 
-        $fileExists = $adapter->fileExists('path.txt');
-        static::assertTrue($fileExists);
+        $this->remoteAdapter->write('path.txt', 'foobar', new Config());
+
+        static::assertFalse($this->localCacheAdapter->fileExists('path.txt'));
+
+        $contents = $adapter->read('path.txt');
+        static::assertSame('foobar', $contents);
+
+        static::assertTrue($this->localCacheAdapter->fileExists('path.txt'));
 
         $this->remoteAdapter->delete('path.txt');
 
+        static::assertTrue($adapter->fileExists('path.txt'));
+
         $contents = $adapter->read('path.txt');
-        static::assertSame('contents', $contents);
+        static::assertSame('foobar', $contents);
     }
 
     /**

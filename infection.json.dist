@@ -14,17 +14,11 @@
     "mutators": {
         "@default": true,
         "global-ignoreSourceCodeByRegex": [
-            "\\\\assert\\(.+\\);",
-            "\\$consumed ..?= .+;"
+            "\\\\assert\\(.+\\);"
         ],
         "ConcatOperandRemoval": {
             "ignoreSourceCodeByRegex": [
-                "\\$this->tmpFilename = \\$this->filename . '.tmp';"
-            ]
-        },
-        "TrueValue": {
-            "ignoreSourceCodeByRegex": [
-                "self::\\$filterRegistered = true;"
+                "\\$tmpFile = uniqid\\(\\$destination . '_'\\);"
             ]
         }
     },
